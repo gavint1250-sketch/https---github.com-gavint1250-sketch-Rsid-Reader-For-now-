@@ -15,8 +15,6 @@ def install_package(package, progress_text_widget):
         return True
     except subprocess.CalledProcessError:
         progress_text_widget.insert(tk.END, f"Failed to install {package}. Please install it manually.\n")
-        if platform.system() == "Darwin" and "arm" in platform.machine():
-             progress_text_widget.insert(tk.END, "Note: On ARM Macs, some packages might require manual installation via 'pip3 install'.\n")
         return False
 
 def check_and_install_dependencies():
