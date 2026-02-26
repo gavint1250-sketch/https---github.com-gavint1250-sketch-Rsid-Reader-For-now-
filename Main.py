@@ -5,7 +5,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog
 import platform
 
-# --- Dependency Management ---
+# This section should install dependencies. (Update as more are added/Taken away) 
+# It should also run a check for dependencies and if they are already installed, it should skip installation.
 
 def install_package(package, progress_text_widget):
     """Install a package using pip, providing feedback to the GUI."""
@@ -95,16 +96,16 @@ def launch_main_app():
 
     def detect_ai_and_rsid(file_path):
         if not os.path.exists(file_path):
-            return ["Error: File not found."]
-        
+            return ["Error: File not found. Please check the path."]
+
         findings = []
-        
+
         if file_path.lower().endswith('.docx'):
             try:
                 document = docx.Document(file_path)
                 core_properties = document.core_properties
                 ai_keywords = ["ai", "artificial intelligence", "chatgpt", "gpt-3", "gpt-4", "dall-e", "midjourney", "stable diffusion", "copilot"]
-                
+
                 if core_properties.author and any(k in core_properties.author.lower() for k in ai_keywords):
                     findings.append(f"Potential AI keyword found in author: {core_properties.author}")
                 if core_properties.last_modified_by and any(k in core_properties.last_modified_by.lower() for k in ai_keywords):
@@ -130,8 +131,12 @@ def launch_main_app():
                     else:
                         findings.append("Could not find 'word/document.xml' in the .docx file.")
 
+            except PermissionError:
+                return ["Error: You do not have permission to access this file. Please check file permissions or close the file if it's open in another program."]
+            except zipfile.BadZipFile:
+                return ["Error: The file is not a valid .docx file or it is corrupted."]
             except Exception as e:
-                return [f"Error processing .docx file: {e}"]
+                return [f"An unexpected error occurred while processing the .docx file: {e}"]
 
         elif file_path.lower().endswith('.xml'):
             try:
@@ -145,6 +150,7 @@ def launch_main_app():
             return ["Error: This tool accepts .docx and .xml files only."]
 
         return findings if findings else ["No obvious AI characteristics or RSID tags found."]
+
 
     def browse_file():
         filepath = filedialog.askopenfilename(
