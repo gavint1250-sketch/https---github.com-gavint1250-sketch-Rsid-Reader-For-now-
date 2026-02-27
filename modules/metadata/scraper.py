@@ -5,6 +5,7 @@ from .revision_checker import check_revision
 from .timestamp_checker import check_timestamps
 from .author_checker import check_author
 from .app_checker import check_app_properties
+from .scrape_detector import check_scrape_indicators
 
 
 def scrape_metadata(file_path):
@@ -13,6 +14,7 @@ def scrape_metadata(file_path):
 
     Checks performed:
       - Creating application (from docProps/app.xml)
+      - Metadata scrape/removal indicators
       - AI keyword scan across 7 text fields
       - Revision count
       - Creation and last-modification timestamps with elapsed time
@@ -29,6 +31,7 @@ def scrape_metadata(file_path):
         props = docx.Document(file_path).core_properties
 
         findings += check_app_properties(file_path)
+        findings += check_scrape_indicators(file_path, props)
         findings += check_keywords(props)
         findings += check_revision(props)
         findings += check_timestamps(props)

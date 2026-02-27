@@ -2,6 +2,7 @@
 import os
 from .metadata import scrape_metadata
 from .rsid_scraper import scrape_rsids
+from .content import analyze_content
 
 def analyze_file(file_path):
     """
@@ -14,6 +15,7 @@ def analyze_file(file_path):
     if file_path.lower().endswith('.docx'):
         findings.extend(scrape_metadata(file_path))
         findings.extend(scrape_rsids(file_path))
+        findings.extend(analyze_content(file_path))
     elif file_path.lower().endswith('.xml'):
         # For now, we can just have a simple message for XMLs
         findings.append("--- XML Analysis ---")
