@@ -163,7 +163,7 @@ def create_and_run_gui():
     result_text.tag_config("timestamp", foreground="#B0B0B0")
     result_text.tag_config("revision",  foreground="#DA70D6")
     result_text.tag_config("author",    foreground="#48D1CC")
-    result_text.tag_config("content",   foreground="#90EE90")
+    result_text.tag_config("content",   foreground="#237B35")
     result_text.tag_config("track",     foreground="#FFD700")
     result_text.tag_config("comment",   foreground="#DDA0DD")
     result_text.tag_config("format",    foreground="#98FB98")
