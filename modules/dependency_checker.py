@@ -16,13 +16,15 @@ def install_package(package, progress_text_widget):
         return True
     except subprocess.CalledProcessError:
         # Retry with --break-system-packages for externally-managed Python environments (e.g. Homebrew)
-        try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "--break-system-packages", package], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            progress_text_widget.insert(tk.END, f"{package} installed successfully.\n")
-            return True
-        except subprocess.CalledProcessError:
-            progress_text_widget.insert(tk.END, f"Failed to install {package}. Please install it manually.\n")
-            return False
+        if platform.system() != "Windows":
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "--break-system-packages", package], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                progress_text_widget.insert(tk.END, f"{package} installed successfully.\n")
+                return True
+            except subprocess.CalledProcessError:
+                pass
+        progress_text_widget.insert(tk.END, f"Failed to install {package}. Please install it manually.\n")
+        return False
 
 
 def get_import_name(package_name):

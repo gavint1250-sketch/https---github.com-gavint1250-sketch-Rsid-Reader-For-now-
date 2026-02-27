@@ -77,6 +77,12 @@ def _check_tkinter():
         result = subprocess.run(cmd)
         install_ok = result.returncode == 0
 
+    elif system == "Windows":
+        print("Error: tkinter is not installed.")
+        print("Please reinstall Python from https://www.python.org")
+        print("During installation, ensure the 'tcl/tk and IDLE' optional feature is checked.")
+        sys.exit(1)
+
     else:
         print("Error: tkinter is not installed.")
         print("Please reinstall Python from https://www.python.org ensuring tkinter is included.")

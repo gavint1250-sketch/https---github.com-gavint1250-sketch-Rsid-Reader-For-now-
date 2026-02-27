@@ -1,5 +1,7 @@
 
 import os
+import platform
+import ctypes
 import customtkinter
 from tkinter import filedialog
 from modules.file_analyzer import analyze_file
@@ -34,6 +36,12 @@ def _get_tag(line):
 
 def create_and_run_gui():
     """Creates and runs the main GUI for the application."""
+
+    if platform.system() == "Windows":
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            pass
 
     customtkinter.set_appearance_mode("System")
     customtkinter.set_default_color_theme("blue")
