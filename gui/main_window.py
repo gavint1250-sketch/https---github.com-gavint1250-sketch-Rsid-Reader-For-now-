@@ -166,6 +166,6 @@ def create_and_run_gui():
     result_text.tag_config("content",   foreground="#237B35")
     result_text.tag_config("track",     foreground="#FFD700")
     result_text.tag_config("comment",   foreground="#DDA0DD")
-    result_text.tag_config("format",    foreground="#98FB98")
+    result_text.tag_config("format",    foreground="#5FA8F2")
 
     app.mainloop()
