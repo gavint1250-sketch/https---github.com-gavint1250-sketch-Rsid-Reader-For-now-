@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docx-integrity-checker"
+version = "2.1.0"
+description = "Analyzes Word and PDF document metadata to detect academic integrity issues"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Gavin Thomas", email = "gavint1250@gmail.com" }]
+requires-python = ">=3.8"
+keywords = ["docx", "metadata", "rsid", "academic integrity", "plagiarism"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "python-docx",
+    "Pillow",
+    "customtkinter",
+    "packaging",
+    "lxml",
+    "pypdf",
+]
+
+[project.scripts]
+docx-integrity-checker = "Main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools]
+py-modules = ["Main"]
+
+[tool.setuptools.package-data]
+modules = ["requirements.txt"]

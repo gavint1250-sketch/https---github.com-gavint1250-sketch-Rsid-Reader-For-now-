@@ -41,7 +41,7 @@ def check_and_install_dependencies():
     """Check for dependencies from requirements.txt and install them if missing, using a GUI."""
     
     _here = os.path.dirname(os.path.abspath(__file__))
-    req_path = os.path.join(_here, "..", "requirements.txt")
+    req_path = os.path.join(_here, "requirements.txt")
     try:
         with open(req_path) as f:
             required_packages = [line.strip() for line in f if line.strip() and not line.startswith('#')]
