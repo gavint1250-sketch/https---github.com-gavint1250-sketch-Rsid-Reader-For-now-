@@ -6,6 +6,7 @@ from .timestamp_checker import check_timestamps
 from .author_checker import check_author
 from .app_checker import check_app_properties
 from .scrape_detector import check_scrape_indicators
+from .gdocs_checker import check_gdocs
 
 
 def scrape_metadata(file_path):
@@ -31,6 +32,7 @@ def scrape_metadata(file_path):
         props = docx.Document(file_path).core_properties
 
         findings += check_app_properties(file_path)
+        findings += check_gdocs(file_path)
         findings += check_scrape_indicators(file_path, props)
         findings += check_keywords(props)
         findings += check_revision(props)

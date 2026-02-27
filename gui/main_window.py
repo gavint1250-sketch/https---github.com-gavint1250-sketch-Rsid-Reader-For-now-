@@ -20,6 +20,7 @@ _PREFIX_TO_TAG = {
     "[TRACK]":     "track",
     "[COMMENT]":   "comment",
     "[FORMAT]":    "format",
+    "[GDOCS]":     "gdocs",
 }
 
 
@@ -77,8 +78,8 @@ def create_and_run_gui():
     # --- Browse single file ---
     def browse_file():
         filepath = filedialog.askopenfilename(
-            title="Select a .docx or .xml file",
-            filetypes=(("Word Documents", "*.docx"), ("XML Files", "*.xml"), ("All files", "*.*"))
+            title="Select a .docx, .pdf, or .xml file",
+            filetypes=(("Supported Files", "*.docx *.pdf *.xml"), ("Word Documents", "*.docx"), ("PDF Files", "*.pdf"), ("XML Files", "*.xml"), ("All files", "*.*"))
         )
         if not filepath:
             return
@@ -93,15 +94,18 @@ def create_and_run_gui():
         folder = filedialog.askdirectory(title="Select Folder Containing .docx Files")
         if not folder:
             return
-        docx_files = sorted(f for f in os.listdir(folder) if f.lower().endswith('.docx'))
-        if not docx_files:
+        supported_files = sorted(
+            f for f in os.listdir(folder)
+            if f.lower().endswith('.docx') or f.lower().endswith('.pdf')
+        )
+        if not supported_files:
             current_results.clear()
-            current_results.append("No .docx files found in the selected folder.")
+            current_results.append("No .docx or .pdf files found in the selected folder.")
             _display_results(current_results)
             label_file.configure(text="No files found.")
             return
         combined = []
-        for fname in docx_files:
+        for fname in supported_files:
             sep = "=" * 60
             combined.append(sep)
             combined.append(f"=== FILE: {fname} ===")
@@ -111,7 +115,7 @@ def create_and_run_gui():
         current_results.clear()
         current_results.extend(combined)
         _display_results(current_results)
-        label_file.configure(text=f"Analyzed {len(docx_files)} file(s) from folder.")
+        label_file.configure(text=f"Analyzed {len(supported_files)} file(s) from folder.")
 
     # --- Save report ---
     def save_report():
@@ -136,7 +140,7 @@ def create_and_run_gui():
 
     # --- Buttons (2 x 2 grid) ---
     browse_button = customtkinter.CTkButton(
-        frame_top, text="Browse File (.docx / .xml)", command=browse_file
+        frame_top, text="Browse File (.docx / .pdf / .xml)", command=browse_file
     )
     browse_button.grid(row=0, column=0, padx=10, pady=(10, 5), sticky="ew")
 
@@ -175,5 +179,6 @@ def create_and_run_gui():
     result_text.tag_config("track",     foreground="#FFD700")
     result_text.tag_config("comment",   foreground="#DDA0DD")
     result_text.tag_config("format",    foreground="#5FA8F2")
+    result_text.tag_config("gdocs",     foreground="#4285F4")
 
     app.mainloop()

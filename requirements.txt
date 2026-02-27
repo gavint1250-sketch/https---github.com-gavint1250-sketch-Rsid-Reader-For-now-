@@ -3,3 +3,4 @@ Pillow
 customtkinter
 packaging
 lxml
+pypdf
