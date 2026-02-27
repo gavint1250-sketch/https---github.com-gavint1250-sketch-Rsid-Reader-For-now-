@@ -1,5 +1,4 @@
 from modules.dependency_checker import check_and_install_dependencies
-from gui.main_window import create_and_run_gui
 
 def main():
     """
@@ -7,6 +6,7 @@ def main():
     Checks dependencies and launches the GUI.
     """
     if check_and_install_dependencies():
+        from gui.main_window import create_and_run_gui
         create_and_run_gui()
 
 if __name__ == "__main__":
