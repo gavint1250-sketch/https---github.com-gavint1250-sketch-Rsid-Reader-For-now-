@@ -1,0 +1,5 @@
+python-docx
+Pillow
+customtkinter
+packaging
+lxml
