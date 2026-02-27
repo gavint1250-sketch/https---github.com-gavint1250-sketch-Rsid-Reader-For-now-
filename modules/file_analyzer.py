@@ -1,7 +1,7 @@
 
 import os
-from modules.metadata_scraper import scrape_metadata
-from modules.rsid_scraper import scrape_rsids
+from .metadata import scrape_metadata
+from .rsid_scraper import scrape_rsids
 
 def analyze_file(file_path):
     """
