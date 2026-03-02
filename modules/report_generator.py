@@ -1,188 +1,294 @@
 
 """
-report_generator.py — Generates a self-contained HTML AI analysis report.
+HTML Report Generator
 
-Uses only Python stdlib (html, pathlib, datetime) — no extra dependencies.
-The produced file opens correctly in every major browser on Windows, macOS, and Linux.
+Produces a self-contained HTML file from the structured per-paragraph analysis
+data returned by analyze_content().  Uses only Python stdlib — no extra deps.
+The resulting file opens correctly in every major browser on Windows, macOS,
+and Linux via Python's webbrowser module.
 """
 
-import html
+import html as _html
+import os
 from datetime import datetime
 
-
-# ── color palette ──────────────────────────────────────────────────────────────
-_LABEL_STYLE = {
-    'ai_suspected': ('AI Suspected',  '#E74C3C', '#FFEEEE'),
-    'inconclusive':  ('Inconclusive',  '#F39C12', '#FFF9EE'),
-    'human':         ('Human',         '#27AE60', '#EEFFEE'),
-    'too_short':     ('Too Short',     '#AAAAAA', '#F5F5F5'),
-    'error':         ('Error',         '#999999', '#F9F9F9'),
-}
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+_VOCAB_BG = "#FFE4B5"     # moccasin  — inline highlight for AI vocab words
+_VOCAB_FG = "#8B0000"     # dark red
+_AI_ROW_BG = "#FFF0F0"    # misty rose — row background for low-perplexity paras
+_NORMAL_ROW_BG = "#FFFFFF"
 
 
-def _badge(label):
-    """Return an inline HTML badge for a paragraph label."""
-    name, color, _ = _LABEL_STYLE.get(label, ('Unknown', '#999', '#fff'))
-    return (
-        f'<span style="display:inline-block;padding:2px 9px;border-radius:12px;'
-        f'font-size:0.75em;font-weight:600;color:#fff;background:{color};'
-        f'margin-left:8px;vertical-align:middle">{html.escape(name)}</span>'
-    )
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _esc(text):
+    """HTML-escape a string."""
+    return _html.escape(str(text))
 
 
-def _paragraph_html(entry, index):
-    """Render a single paragraph entry as an HTML block."""
-    label = entry.get('label', 'error')
-    _, border_color, bg_color = _LABEL_STYLE.get(label, ('#999', '#F9F9F9', '#F9F9F9'))
-    text = html.escape(entry.get('text', ''))
-    word_count = entry.get('word_count', 0)
-    perplexity = entry.get('perplexity')
+def _highlight_vocab(text, vocab_hits):
+    """
+    Return HTML with AI vocabulary terms wrapped in coloured <span> tags.
+    Processes longest phrases first to avoid partial-match collisions.
+    """
+    if not vocab_hits:
+        return _esc(text)
 
-    score_html = ''
-    if perplexity is not None:
-        score_html = (
-            f'<span style="font-size:0.78em;color:#555;margin-left:6px">'
-            f'Perplexity: <strong>{perplexity}</strong></span>'
-        )
+    # Sort descending by length so longer phrases are matched before substrings
+    terms = sorted(set(vocab_hits), key=len, reverse=True)
 
-    return (
-        f'<div style="background:{bg_color};border-left:5px solid {border_color};'
-        f'padding:12px 16px;margin:8px 0;border-radius:4px">'
-        f'<div style="margin-bottom:6px">'
-        f'<span style="font-size:0.78em;color:#888">#{index + 1} &nbsp;·&nbsp; '
-        f'{word_count} word{"s" if word_count != 1 else ""}</span>'
-        f'{_badge(label)}{score_html}'
+    # Represent the text as a list of (already_html: bool, fragment: str) pairs
+    segments = [(False, text)]
+
+    for term in terms:
+        new_segments = []
+        for is_html, frag in segments:
+            if is_html:
+                new_segments.append((True, frag))
+                continue
+            lower_frag = frag.lower()
+            lower_term = term.lower()
+            start = 0
+            while True:
+                idx = lower_frag.find(lower_term, start)
+                if idx == -1:
+                    new_segments.append((False, frag[start:]))
+                    break
+                if idx > start:
+                    new_segments.append((False, frag[start:idx]))
+                matched = frag[idx: idx + len(term)]
+                new_segments.append((True,
+                    f'<span style="background:{_VOCAB_BG};color:{_VOCAB_FG};'
+                    f'font-weight:bold" title="AI vocabulary term">'
+                    f'{_esc(matched)}</span>'
+                ))
+                start = idx + len(term)
+        segments = new_segments
+
+    return "".join(frag if is_html else _esc(frag) for is_html, frag in segments)
+
+
+def _fmt(value, decimals=2, suffix="", fallback="—"):
+    """Format a numeric value or return a dash for None / zero."""
+    if value is None:
+        return fallback
+    try:
+        return f"{value:.{decimals}f}{suffix}"
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _card(title, *rows):
+    """Build a summary metric card from (label, value) row tuples."""
+    inner = "".join(
+        f'<div style="display:flex;justify-content:space-between;'
+        f'padding:4px 0;border-bottom:1px solid #eee">'
+        f'<span style="color:#555;font-size:0.9em">{_esc(label)}</span>'
+        f'<span style="font-weight:600;color:#2c3e50">{_esc(str(value))}</span>'
         f'</div>'
-        f'<p style="margin:0;line-height:1.6">{text}</p>'
-        f'</div>'
+        for label, value in rows
     )
-
-
-def _summary_block(paragraph_scores):
-    """Build the summary stats block from a list of scored paragraph dicts."""
-    total = len(paragraph_scores)
-    ai_count = sum(1 for p in paragraph_scores if p['label'] == 'ai_suspected')
-    inconclusive = sum(1 for p in paragraph_scores if p['label'] == 'inconclusive')
-    human_count = sum(1 for p in paragraph_scores if p['label'] == 'human')
-    too_short = sum(1 for p in paragraph_scores if p['label'] == 'too_short')
-    scored = [p for p in paragraph_scores if p['perplexity'] is not None]
-    avg_ppl = round(sum(p['perplexity'] for p in scored) / len(scored), 2) if scored else 'N/A'
-    pct = round(ai_count / total * 100, 1) if total else 0
-
-    def row(label, count, color='#333'):
-        return (
-            f'<tr><td style="padding:4px 12px 4px 0;color:{color}">{html.escape(label)}</td>'
-            f'<td style="padding:4px 0;font-weight:600;color:{color}">{count}</td></tr>'
-        )
-
     return (
-        f'<table style="border-collapse:collapse;font-size:0.92em">'
-        f'{row("Total paragraphs analysed:", total)}'
-        f'{row("AI-suspected:", f"{ai_count} ({pct}%)", "#E74C3C")}'
-        f'{row("Inconclusive:", inconclusive, "#F39C12")}'
-        f'{row("Likely human:", human_count, "#27AE60")}'
-        f'{row("Too short to score:", too_short, "#AAAAAA")}'
-        f'{row("Average perplexity (scored paras):", avg_ppl)}'
-        f'</table>'
+        f'<div style="background:#fff;border-radius:8px;padding:16px;'
+        f'box-shadow:0 2px 6px rgba(0,0,0,.1)">'
+        f'<h3 style="margin:0 0 10px;font-size:.85em;text-transform:uppercase;'
+        f'letter-spacing:.5px;color:#2980b9">{_esc(title)}</h3>'
+        f'{inner}</div>'
     )
 
 
-def _legend_html():
-    return (
-        '<div style="display:flex;flex-wrap:wrap;gap:10px;margin:12px 0">'
-        + ''.join(
-            f'<span style="display:flex;align-items:center;gap:6px">'
-            f'<span style="width:14px;height:14px;border-radius:3px;'
-            f'background:{border};display:inline-block"></span>'
-            f'<span style="font-size:0.85em">{html.escape(name)}</span></span>'
-            for name, border, _ in _LABEL_STYLE.values()
-        )
-        + '</div>'
-    )
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
-
-# ── public API ─────────────────────────────────────────────────────────────────
-
-def generate_html_report(files):
+def generate_html_report(report_data, findings):
     """
     Generate a self-contained HTML AI analysis report.
 
-    Parameters
-    ----------
-    files : list[dict]
-        Each entry must have:
-          'filename' : str              — display name for the file
-          'scores'   : list[dict]       — paragraph scores from perplexity_checker
+    Args:
+        report_data : list[dict]
+            Per-paragraph dicts from analyze_content(), with the summary dict
+            (identified by '_summary': True) as the final element.
+            Multiple files can be included; each file's summary marks the boundary.
+        findings    : list[str]
+            The flat findings list from analyze_file(), shown verbatim in a
+            'Raw Findings' section at the bottom of the report.
 
-    Returns
-    -------
-    str
-        Complete HTML document as a string.  Write it to a .html file and open
-        it with webbrowser.open(pathlib.Path(path).as_uri()).
+    Returns:
+        str — Complete HTML document ready to write to a .html file.
     """
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    file_sections = []
-    for entry in files:
-        filename = html.escape(entry.get('filename', 'Unknown file'))
-        scores = entry.get('scores', [])
+    # --- Split report_data into per-file groups --------------------------------
+    # Each group ends with its summary dict.
+    file_groups = []
+    current_paras = []
+    for item in report_data:
+        if item.get("_summary"):
+            file_groups.append({"summary": item, "paragraphs": current_paras})
+            current_paras = []
+        else:
+            current_paras.append(item)
 
-        paras_html = ''.join(
-            _paragraph_html(p, i) for i, p in enumerate(scores)
-        ) or '<p style="color:#999">No paragraphs could be scored for this file.</p>'
+    # --- Build HTML for each file group ---------------------------------------
+    file_sections_html = ""
+    for group in file_groups:
+        summary = group["summary"]
+        paragraphs = group["paragraphs"]
 
-        file_sections.append(
-            f'<section style="margin-bottom:48px">'
-            f'<h2 style="border-bottom:2px solid #E0E0E0;padding-bottom:8px;color:#2C3E50">'
-            f'{filename}</h2>'
-            f'<div style="background:#F8F8F8;border-radius:8px;padding:16px 20px;margin-bottom:20px">'
-            f'<h3 style="margin:0 0 10px 0;color:#2C3E50;font-size:1em">Summary</h3>'
-            f'{_summary_block(scores)}'
-            f'</div>'
-            f'<h3 style="color:#2C3E50;font-size:1em;margin-bottom:8px">Paragraph Breakdown</h3>'
-            f'{paras_html}'
-            f'</section>'
+        filename = _esc(os.path.basename(summary.get("filename", "Unknown file")))
+        total_words = summary.get("total_words", 0)
+        total_sents = summary.get("total_sentences", 0)
+        ttr = summary.get("ttr")
+        mattr = summary.get("mattr")
+        ease = summary.get("doc_readability_ease", 0.0)
+        grade = summary.get("doc_fk_grade", 0.0)
+        vocab_density = summary.get("vocab_density", 0.0)
+        vocab_terms = summary.get("vocab_found_terms", {})
+        burst_score = summary.get("burstiness_score")
+        burst_interp = summary.get("burstiness_interp", "")
+
+        # Summary cards
+        cards_html = (
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));'
+            'gap:16px;margin-bottom:24px">'
+            + _card("Document Stats",
+                    ("Total words", total_words),
+                    ("Total sentences", total_sents))
+            + _card("Vocabulary Diversity",
+                    ("TTR", _fmt(ttr, 4)),
+                    ("MATTR (window=100)", _fmt(mattr, 4) if mattr else "N/A (<500 words)"))
+            + _card("Readability",
+                    ("Flesch Ease (AI: 40–65)", _fmt(ease, 1)),
+                    ("FK Grade (AI: 8–12)", _fmt(grade, 1)))
+            + _card("AI Vocabulary",
+                    ("Density", f"{vocab_density * 100:.2f}%"),
+                    ("Distinct terms found", len(vocab_terms)))
+            + _card("Burstiness",
+                    ("B-index", _fmt(burst_score, 3)),
+                    ("", burst_interp[:50] if burst_interp else "—"))
+            + "</div>"
         )
 
-    all_files_html = '\n'.join(file_sections)
+        # Top vocab terms table (up to 20)
+        vocab_table_html = ""
+        if vocab_terms:
+            rows = "".join(
+                f"<tr><td style='padding:4px 8px'>{_esc(t)}</td>"
+                f"<td style='padding:4px 8px;text-align:center'>{c}</td></tr>"
+                for t, c in sorted(vocab_terms.items(), key=lambda x: -x[1])[:20]
+            )
+            vocab_table_html = (
+                '<h3 style="color:#34495e">Top AI Vocabulary Terms</h3>'
+                '<table style="border-collapse:collapse;width:100%;margin-bottom:24px">'
+                '<tr style="background:#2c3e50;color:#fff">'
+                '<th style="padding:6px 8px;text-align:left">Term</th>'
+                '<th style="padding:6px 8px">Occurrences</th></tr>'
+                + rows + "</table>"
+            )
 
+        # Paragraph table
+        para_rows_html = ""
+        for para in paragraphs:
+            if not para.get("text"):
+                continue
+            perp = para.get("perplexity")
+            row_bg = _AI_ROW_BG if (perp is not None and perp < 50) else _NORMAL_ROW_BG
+            text_html = _highlight_vocab(para["text"], para.get("vocab_hits", []))
+            ease_p, grade_p = para.get("readability_ease"), para.get("fk_grade")
+            vocab_count = len(para.get("vocab_hits", []))
+
+            para_rows_html += (
+                f'<tr style="background:{row_bg};vertical-align:top">'
+                f'<td style="padding:6px;border:1px solid #ddd;text-align:center;'
+                f'color:#888;font-size:.85em">#{para["index"] + 1}</td>'
+                f'<td style="padding:6px;border:1px solid #ddd;line-height:1.5">{text_html}</td>'
+                f'<td style="padding:6px;border:1px solid #ddd;text-align:center">'
+                f'{_fmt(perp, 1)}</td>'
+                f'<td style="padding:6px;border:1px solid #ddd;text-align:center">'
+                f'{vocab_count if vocab_count else "—"}</td>'
+                f'<td style="padding:6px;border:1px solid #ddd;text-align:center">'
+                f'{_fmt(ease_p, 1)}</td>'
+                f'<td style="padding:6px;border:1px solid #ddd;text-align:center">'
+                f'{_fmt(grade_p, 1)}</td>'
+                f'</tr>'
+            )
+
+        para_table_html = (
+            '<h3 style="color:#34495e">Paragraph Analysis</h3>'
+            '<p style="font-size:.82em;color:#888;margin-bottom:8px">'
+            f'<span style="background:{_AI_ROW_BG};padding:2px 6px;border-radius:3px">'
+            f'Pink rows</span> = low perplexity (AI-likely, &lt;50). '
+            f'<span style="background:{_VOCAB_BG};color:{_VOCAB_FG};padding:2px 6px;'
+            f'border-radius:3px;font-weight:bold">Highlighted words</span> = '
+            f'AI vocabulary terms.</p>'
+            '<table style="border-collapse:collapse;width:100%;margin-bottom:32px">'
+            '<tr style="background:#2c3e50;color:#fff">'
+            '<th style="padding:6px 8px">#</th>'
+            '<th style="padding:6px 8px;text-align:left">Paragraph Text</th>'
+            '<th style="padding:6px 8px">Perplexity</th>'
+            '<th style="padding:6px 8px">Vocab Hits</th>'
+            '<th style="padding:6px 8px">Ease</th>'
+            '<th style="padding:6px 8px">FK Grade</th>'
+            '</tr>'
+            + para_rows_html
+            + "</table>"
+        )
+
+        file_sections_html += (
+            f'<section style="margin-bottom:48px">'
+            f'<h2 style="border-bottom:2px solid #3498db;padding-bottom:8px;'
+            f'color:#2c3e50">{filename}</h2>'
+            + cards_html
+            + vocab_table_html
+            + para_table_html
+            + "</section>"
+        )
+
+    # --- Raw findings panel ---------------------------------------------------
+    raw_lines = "".join(
+        f'<div style="margin:1px 0">{_esc(line)}</div>' for line in findings
+    )
+    raw_panel_html = (
+        '<h2 style="color:#2c3e50">Raw Findings</h2>'
+        '<div style="background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:8px;'
+        'font-family:monospace;font-size:12px;max-height:400px;overflow-y:auto;'
+        'white-space:pre-wrap">'
+        + raw_lines + "</div>"
+    )
+
+    # --- Assemble full HTML ---------------------------------------------------
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Analysis Report</title>
+  <title>AI Detection Report</title>
   <style>
     *, *::before, *::after {{ box-sizing: border-box; }}
     body {{
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-      max-width: 900px;
-      margin: 40px auto;
-      padding: 0 24px 60px;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+      background: #f4f6f8;
       color: #333;
       line-height: 1.5;
     }}
-    h1 {{ color: #1A252F; margin-bottom: 4px; }}
-    .meta {{ color: #888; font-size: 0.88em; margin-bottom: 32px; }}
-    .legend-title {{ font-weight: 600; font-size: 0.88em; color: #555;
-                     margin-bottom: 4px; }}
+    h1 {{ color: #1a252f; border-bottom: 3px solid #3498db; padding-bottom: 10px; }}
+    h2 {{ color: #2c3e50; }}
+    table {{ width: 100%; }}
+    th {{ text-align: center; }}
   </style>
 </head>
 <body>
-  <h1>AI Analysis Report</h1>
-  <p class="meta">Generated: {timestamp}</p>
-
-  <div style="background:#F0F4F8;border-radius:8px;padding:14px 18px;margin-bottom:32px">
-    <div class="legend-title">Legend</div>
-    {_legend_html()}
-    <p style="margin:8px 0 0;font-size:0.82em;color:#666">
-      Perplexity is scored using GPT-2. Lower values indicate more predictable,
-      AI-like text. Human writing typically scores &gt;&nbsp;100; AI-generated text
-      typically scores &lt;&nbsp;30. Burstiness measures sentence-length variance —
-      human writing is more varied.
-    </p>
-  </div>
-
-  {all_files_html}
+  <h1>AI Detection Report</h1>
+  <p style="color:#888;margin-bottom:32px">Generated: {generated_at}</p>
+  {file_sections_html}
+  {raw_panel_html}
 </body>
 </html>"""

@@ -1,0 +1,124 @@
+
+"""
+Readability Score Checker
+
+Computes Flesch Reading Ease and Flesch-Kincaid Grade Level using a
+heuristic syllable counter. No external dependencies required.
+
+AI-generated text typically clusters in:
+  Flesch Reading Ease : 40 – 65
+  FK Grade Level      : 8  – 12
+
+Human writing shows considerably wider variation in both metrics.
+"""
+
+import re
+
+_VOWEL_RE = re.compile(r"[aeiouy]+", re.IGNORECASE)
+_SILENT_E_RE = re.compile(r"[^aeiouy]e$", re.IGNORECASE)
+
+
+def _count_syllables(word):
+    """
+    Heuristic syllable counter (~85% accuracy for standard English).
+      1. Count vowel groups.
+      2. Subtract 1 for a silent trailing 'e' (if not the only syllable).
+      3. Return at least 1.
+    """
+    word = word.lower().strip(".,;:!?\"'()-")
+    if not word:
+        return 0
+    groups = len(_VOWEL_RE.findall(word))
+    if groups > 1 and _SILENT_E_RE.search(word):
+        groups -= 1
+    return max(1, groups)
+
+
+def _split_sentences(text):
+    """Split text on sentence-ending punctuation; return non-empty strips."""
+    return [s.strip() for s in re.split(r"[.!?]+", text) if s.strip()]
+
+
+def _score_text(text):
+    """
+    Compute Flesch ease and FK grade for a text block.
+
+    Returns (ease, grade, word_count, sentence_count, syllable_count).
+    Returns all-zeros tuple when there is insufficient text.
+    """
+    words = re.findall(r"[a-zA-Z'-]+", text)
+    sentences = _split_sentences(text)
+    wc = len(words)
+    sc = len(sentences)
+    syls = sum(_count_syllables(w) for w in words)
+
+    if wc < 3 or sc == 0:
+        return 0.0, 0.0, wc, sc, syls
+
+    avg_wps = wc / sc
+    avg_spw = syls / wc
+    ease = 206.835 - 1.015 * avg_wps - 84.6 * avg_spw
+    grade = 0.39 * avg_wps + 11.8 * avg_spw - 15.59
+    return ease, grade, wc, sc, syls
+
+
+def check_readability(document):
+    """
+    Compute Flesch Reading Ease and Flesch-Kincaid Grade Level for the
+    whole document and for each individual paragraph.
+
+    Args:
+        document: A python-docx Document object.
+
+    Returns:
+        A 3-tuple:
+          findings        : list[str]                  — [READABILITY]-tagged GUI strings
+          per_para_scores : list[tuple[float, float]]  — (ease, grade) per paragraph,
+                            index-aligned with document.paragraphs.
+                            (0.0, 0.0) for paragraphs too short to score.
+          summary         : dict with keys:
+                              'doc_readability_ease'  → float
+                              'doc_fk_grade'          → float
+                              'total_sentences'       → int
+                              'total_syllables'       → int
+    """
+    per_para_scores = []
+    doc_words = doc_sents = doc_syls = 0
+
+    for para in document.paragraphs:
+        text = para.text.strip()
+        if not text:
+            per_para_scores.append((0.0, 0.0))
+            continue
+        ease, grade, wc, sc, syls = _score_text(text)
+        per_para_scores.append((ease, grade))
+        doc_words += wc
+        doc_sents += sc
+        doc_syls += syls
+
+    # Document-level scores re-computed from aggregated raw counts
+    if doc_words >= 3 and doc_sents > 0:
+        avg_wps = doc_words / doc_sents
+        avg_spw = doc_syls / doc_words
+        doc_ease = 206.835 - 1.015 * avg_wps - 84.6 * avg_spw
+        doc_grade = 0.39 * avg_wps + 11.8 * avg_spw - 15.59
+    else:
+        doc_ease = doc_grade = 0.0
+
+    ease_flag = "AI-range (40–65)" if 40 <= doc_ease <= 65 else "outside typical AI range"
+    grade_flag = "AI-range (8–12)" if 8 <= doc_grade <= 12 else "outside typical AI range"
+
+    findings = [
+        f"[READABILITY] Flesch Reading Ease: {doc_ease:.1f} — {ease_flag}",
+        f"[READABILITY] Flesch-Kincaid Grade Level: {doc_grade:.1f} — {grade_flag}",
+        f"[READABILITY] {doc_words} words · {doc_sents} sentences · {doc_syls} syllables",
+    ]
+
+    summary = {
+        "doc_readability_ease": doc_ease,
+        "doc_fk_grade": doc_grade,
+        "total_sentences": doc_sents,
+        "total_syllables": doc_syls,
+    }
+
+    return findings, per_para_scores, summary
