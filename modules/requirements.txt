@@ -4,3 +4,6 @@ customtkinter
 packaging
 lxml
 pypdf
+transformers
+torch
+nltk

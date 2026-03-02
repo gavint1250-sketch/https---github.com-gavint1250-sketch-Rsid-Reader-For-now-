@@ -4,6 +4,20 @@ import shutil
 import subprocess
 import platform
 
+# --- Isolated library directory ---
+# All pip packages are installed here so the entire dependency tree can be
+# removed by deleting this single folder (easy uninstall).
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+LIBS_DIR = os.path.join(_APP_DIR, 'libs')
+os.makedirs(LIBS_DIR, exist_ok=True)
+if LIBS_DIR not in sys.path:
+    sys.path.insert(0, LIBS_DIR)
+
+# Point NLTK and HuggingFace caches into libs/ so model data is also self-contained
+os.environ.setdefault('NLTK_DATA', os.path.join(LIBS_DIR, 'nltk_data'))
+os.environ.setdefault('HF_HOME', os.path.join(LIBS_DIR, 'hf_cache'))
+os.environ.setdefault('TRANSFORMERS_CACHE', os.path.join(LIBS_DIR, 'hf_cache'))
+
 
 def _check_tkinter():
     """
@@ -113,7 +127,7 @@ def main():
     Main entry point for the application.
     Checks dependencies and launches the GUI.
     """
-    if check_and_install_dependencies():
+    if check_and_install_dependencies(LIBS_DIR):
         from gui.main_window import create_and_run_gui
         create_and_run_gui()
 

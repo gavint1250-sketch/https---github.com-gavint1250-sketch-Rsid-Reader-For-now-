@@ -4,6 +4,7 @@ from .stats_checker import check_stats
 from .track_changes_checker import check_track_changes
 from .comment_extractor import extract_comments
 from .formatting_checker import check_formatting
+from .perplexity_checker import check_perplexity_and_burstiness
 
 
 def analyze_content(file_path):
@@ -27,6 +28,7 @@ def analyze_content(file_path):
         document = docx.Document(file_path)
 
         findings += check_stats(document)
+        findings += check_perplexity_and_burstiness(document)
         findings += check_track_changes(file_path)
         findings += extract_comments(file_path)
         findings += check_formatting(document)

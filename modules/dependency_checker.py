@@ -6,19 +6,29 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import platform
 
-def install_package(package, progress_text_widget):
-    """Install a package using pip, providing feedback to the GUI."""
+def install_package(package, progress_text_widget, libs_dir):
+    """Install a package into libs_dir using pip --target, providing feedback to the GUI."""
     progress_text_widget.insert(tk.END, f"Installing {package}...\n")
     progress_text_widget.update_idletasks()
+
+    base_cmd = [sys.executable, "-m", "pip", "install", "--target", libs_dir]
+
+    # torch: install CPU-only build (~200 MB) instead of the full CUDA build (~2 GB)
+    if package == "torch":
+        pkg_args = ["torch", "--index-url", "https://download.pytorch.org/whl/cpu"]
+    else:
+        pkg_args = [package]
+
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.check_call(base_cmd + pkg_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         progress_text_widget.insert(tk.END, f"{package} installed successfully.\n")
         return True
     except subprocess.CalledProcessError:
         # Retry with --break-system-packages for externally-managed Python environments (e.g. Homebrew)
         if platform.system() != "Windows":
             try:
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "--break-system-packages", package], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                retry_cmd = base_cmd + ["--break-system-packages"] + pkg_args
+                subprocess.check_call(retry_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 progress_text_widget.insert(tk.END, f"{package} installed successfully.\n")
                 return True
             except subprocess.CalledProcessError:
@@ -37,8 +47,8 @@ def get_import_name(package_name):
     # For many packages, the import name is the same as the package name (or similar)
     return package_name.split("==")[0].replace("-", "_")
 
-def check_and_install_dependencies():
-    """Check for dependencies from requirements.txt and install them if missing, using a GUI."""
+def check_and_install_dependencies(libs_dir):
+    """Check for dependencies from requirements.txt and install them into libs_dir if missing, using a GUI."""
     
     _here = os.path.dirname(os.path.abspath(__file__))
     req_path = os.path.join(_here, "requirements.txt")
@@ -76,7 +86,7 @@ def check_and_install_dependencies():
     def do_install():
         all_installed = True
         for package in missing_dependencies:
-            if not install_package(package, progress_text):
+            if not install_package(package, progress_text, libs_dir):
                 all_installed = False
         
         if all_installed:

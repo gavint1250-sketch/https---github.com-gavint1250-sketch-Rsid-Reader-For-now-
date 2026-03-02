@@ -1,9 +1,11 @@
 
 import os
+import pathlib
 import platform
+import webbrowser
 import ctypes
 import customtkinter
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from modules.file_analyzer import analyze_file
 
 
@@ -20,7 +22,9 @@ _PREFIX_TO_TAG = {
     "[TRACK]":     "track",
     "[COMMENT]":   "comment",
     "[FORMAT]":    "format",
-    "[GDOCS]":     "gdocs",
+    "[GDOCS]":      "gdocs",
+    "[PERPLEXITY]": "perplexity",
+    "[BURST]":      "burst",
 }
 
 
@@ -63,6 +67,10 @@ def create_and_run_gui():
     # Tracks the last set of result strings (used by save + clipboard)
     current_results = []
 
+    # Paragraph-level AI scores from the most recent .docx analysis.
+    # Each entry: {'filename': str, 'scores': list[dict]}
+    _report_data = []
+
     # --- Helper: render results into the text area with color tags ---
     def _display_results(results):
         result_text.configure(state="normal")
@@ -89,6 +97,18 @@ def create_and_run_gui():
         _display_results(current_results)
         label_file.configure(text=f"Analyzed: {os.path.basename(filepath)}")
 
+        # Collect per-paragraph scores for the HTML report (docx only)
+        _report_data.clear()
+        if filepath.lower().endswith('.docx'):
+            try:
+                from modules.content.perplexity_checker import get_cached_paragraph_scores
+                _report_data.append({
+                    'filename': os.path.basename(filepath),
+                    'scores': get_cached_paragraph_scores(),
+                })
+            except Exception:
+                pass
+
     # --- Browse folder (batch) ---
     def browse_folder():
         folder = filedialog.askdirectory(title="Select Folder Containing .docx Files")
@@ -105,6 +125,7 @@ def create_and_run_gui():
             label_file.configure(text="No files found.")
             return
         combined = []
+        _report_data.clear()
         for fname in supported_files:
             sep = "=" * 60
             combined.append(sep)
@@ -112,6 +133,16 @@ def create_and_run_gui():
             combined.append(sep)
             combined.extend(analyze_file(os.path.join(folder, fname)))
             combined.append("")
+            # Collect per-paragraph scores for HTML report (docx only)
+            if fname.lower().endswith('.docx'):
+                try:
+                    from modules.content.perplexity_checker import get_cached_paragraph_scores
+                    _report_data.append({
+                        'filename': fname,
+                        'scores': get_cached_paragraph_scores(),
+                    })
+                except Exception:
+                    pass
         current_results.clear()
         current_results.extend(combined)
         _display_results(current_results)
@@ -130,6 +161,27 @@ def create_and_run_gui():
             return
         with open(filepath, "w", encoding="utf-8") as f:
             f.write("\n".join(current_results))
+
+    # --- Download AI Report ---
+    def download_report():
+        if not _report_data:
+            messagebox.showinfo(
+                "No Report Data",
+                "Please analyse a .docx file first to generate an AI report.",
+            )
+            return
+        filepath = filedialog.asksaveasfilename(
+            title="Save AI Analysis Report",
+            defaultextension=".html",
+            filetypes=(("HTML Report", "*.html"), ("All files", "*.*")),
+        )
+        if not filepath:
+            return
+        from modules.report_generator import generate_html_report
+        html_content = generate_html_report(_report_data)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(html_content)
+        webbrowser.open(pathlib.Path(filepath).as_uri())
 
     # --- Copy to clipboard ---
     def copy_to_clipboard():
@@ -157,10 +209,15 @@ def create_and_run_gui():
     clipboard_button = customtkinter.CTkButton(
         frame_top, text="Copy to Clipboard", command=copy_to_clipboard
     )
-    clipboard_button.grid(row=1, column=1, padx=10, pady=(5, 10), sticky="ew")
+    clipboard_button.grid(row=1, column=1, padx=10, pady=(5, 5), sticky="ew")
+
+    report_button = customtkinter.CTkButton(
+        frame_top, text="Download AI Report (.html)", command=download_report
+    )
+    report_button.grid(row=2, column=0, columnspan=2, padx=10, pady=(5, 10), sticky="ew")
 
     label_file = customtkinter.CTkLabel(frame_top, text="No file selected", text_color="gray")
-    label_file.grid(row=2, column=0, columnspan=2, padx=10, pady=(0, 10))
+    label_file.grid(row=3, column=0, columnspan=2, padx=10, pady=(0, 10))
 
     # --- Results text area ---
     result_text = customtkinter.CTkTextbox(app, wrap="word", state="disabled")
@@ -179,6 +236,8 @@ def create_and_run_gui():
     result_text.tag_config("track",     foreground="#FFD700")
     result_text.tag_config("comment",   foreground="#DDA0DD")
     result_text.tag_config("format",    foreground="#5FA8F2")
-    result_text.tag_config("gdocs",     foreground="#4285F4")
+    result_text.tag_config("gdocs",      foreground="#4285F4")
+    result_text.tag_config("perplexity", foreground="#9B59B6")
+    result_text.tag_config("burst",      foreground="#1ABC9C")
 
     app.mainloop()
