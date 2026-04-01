@@ -1,4 +1,3 @@
-
 from .metadata_checker import check_pdf_metadata
 from .content_checker import check_pdf_content
 

@@ -1,4 +1,3 @@
-
 import os
 from .metadata import scrape_metadata
 from .rsid_scraper import scrape_rsids

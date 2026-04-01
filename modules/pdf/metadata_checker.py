@@ -1,4 +1,3 @@
-
 import pypdf
 
 # AI-related keywords to scan for in PDF metadata fields

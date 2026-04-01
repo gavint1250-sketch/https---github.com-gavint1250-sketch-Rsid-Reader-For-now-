@@ -1,4 +1,3 @@
-
 import docx
 from .keyword_checker import check_keywords
 from .revision_checker import check_revision

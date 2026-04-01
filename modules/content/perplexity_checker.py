@@ -153,7 +153,7 @@ def _score_paragraphs_internal(document):
                 'label': label,
             })
 
-        except Exception as e:
+        except Exception:
             results.append({
                 'text': text,
                 'word_count': word_count,

@@ -1,4 +1,3 @@
-
 import os
 import sys
 import subprocess
@@ -39,7 +38,6 @@ def install_package(package, progress_text_widget, libs_dir):
 
 def get_import_name(package_name):
     """Get the import name from the package name."""
-    # This is a simple mapping, for more complex cases a more robust solution is needed
     if "python-docx" in package_name:
         return "docx"
     if "Pillow" in package_name:
@@ -49,7 +47,6 @@ def get_import_name(package_name):
 
 def check_and_install_dependencies(libs_dir):
     """Check for dependencies from requirements.txt and install them into libs_dir if missing, using a GUI."""
-    
     _here = os.path.dirname(os.path.abspath(__file__))
     req_path = os.path.join(_here, "requirements.txt")
     try:
@@ -109,6 +106,5 @@ def check_and_install_dependencies(libs_dir):
             messagebox.showerror("Startup Error", "Could not start the application due to missing dependencies.\nPlease check the installation messages and install them manually.")
             error_root.destroy()
             return False
-            
-    return True
 
+    return True

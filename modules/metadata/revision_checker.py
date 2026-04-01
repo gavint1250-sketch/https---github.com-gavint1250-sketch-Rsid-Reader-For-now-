@@ -1,4 +1,3 @@
-
 def check_revision(props):
     """
     Reports the raw revision count from document core properties.

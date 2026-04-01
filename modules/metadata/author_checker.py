@@ -1,4 +1,3 @@
-
 GENERIC_AUTHORS = {"user", "unknown", "author", "admin", "default"}
 
 

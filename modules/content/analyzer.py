@@ -1,4 +1,3 @@
-
 import docx
 from .stats_checker import check_stats, check_vocabulary_diversity
 from .track_changes_checker import check_track_changes

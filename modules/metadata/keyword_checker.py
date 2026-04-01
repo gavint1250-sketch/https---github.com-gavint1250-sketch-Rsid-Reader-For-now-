@@ -1,4 +1,3 @@
-
 AI_KEYWORDS = [
     "ai", "artificial intelligence", "chatgpt",
     "gpt-3", "gpt-4", "dall-e", "midjourney",
