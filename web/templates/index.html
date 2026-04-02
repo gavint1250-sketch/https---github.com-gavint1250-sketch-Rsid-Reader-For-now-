@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document Integrity Analyzer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: -0.5px;
+  }
+  .header p {
+    margin-top: 6px;
+    color: #94a3b8;
+    font-size: 0.95rem;
+  }
+
+  /* ── Privacy banner ── */
+  .privacy-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-left: 4px solid #22c55e;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 28px;
+    font-size: 0.88rem;
+    color: #94a3b8;
+  }
+  .privacy-banner .icon { font-size: 1.1rem; flex-shrink: 0; }
+  .privacy-banner strong { color: #e2e8f0; }
+
+  /* ── Cards ── */
+  .card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .step-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #64748b;
+    margin-bottom: 14px;
+  }
+
+  /* ── Drop zone ── */
+  .drop-zone {
+    border: 2px dashed #334155;
+    border-radius: 10px;
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .drop-zone:hover,
+  .drop-zone.drag-over {
+    border-color: #6366f1;
+    background: #1a1f35;
+  }
+  .drop-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+  .drop-zone .dz-icon { font-size: 2.4rem; margin-bottom: 10px; }
+  .drop-zone .dz-main {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e2e8f0;
+  }
+  .drop-zone .dz-sub {
+    margin-top: 6px;
+    font-size: 0.82rem;
+    color: #64748b;
+  }
+
+  /* ── File list ── */
+  #file-list {
+    margin-top: 14px;
+    display: none;
+  }
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #0f172a;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 0.88rem;
+    color: #cbd5e1;
+  }
+  .file-item .fi-icon { color: #6366f1; }
+  .file-item .fi-name { flex: 1; word-break: break-all; }
+  .file-item .fi-size { color: #475569; white-space: nowrap; }
+
+  /* ── Analyse button ── */
+  #analyse-btn {
+    width: 100%;
+    padding: 14px;
+    margin-top: 6px;
+    background: #6366f1;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s, opacity 0.2s;
+  }
+  #analyse-btn:hover:not(:disabled) { background: #4f46e5; }
+  #analyse-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* ── Progress ── */
+  #progress-card { display: none; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    margin-bottom: 8px;
+  }
+  .progress-bar-track {
+    width: 100%;
+    height: 10px;
+    background: #0f172a;
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    border-radius: 99px;
+    transition: width 0.4s ease;
+  }
+
+  /* ── Results ── */
+  #results-card { display: none; }
+
+  .action-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border-radius: 7px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: #e2e8f0;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .action-btn:hover { background: #1e293b; border-color: #6366f1; }
+  .action-btn.primary { background: #6366f1; border-color: #6366f1; color: #fff; }
+  .action-btn.primary:hover { background: #4f46e5; }
+  #copy-btn.copied { background: #16a34a; border-color: #16a34a; color: #fff; }
+
+  /* ── Findings list ── */
+  #findings {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 16px;
+    font-family: "Fira Code", "Cascadia Code", "Consolas", monospace;
+    font-size: 0.82rem;
+    line-height: 1.7;
+    max-height: 600px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Tag colors */
+  .tag-keyword     { color: #FF8C00; }
+  .tag-scrape      { color: #FF4444; }
+  .tag-app         { color: #00BFFF; }
+  .tag-rsid        { color: #6495ED; }
+  .tag-timestamp   { color: #94a3b8; }
+  .tag-revision    { color: #DA70D6; }
+  .tag-author      { color: #48D1CC; }
+  .tag-content     { color: #4ade80; }
+  .tag-track       { color: #DAA520; }
+  .tag-comment     { color: #DDA0DD; }
+  .tag-format      { color: #7dd3fc; }
+  .tag-gdocs       { color: #4285F4; }
+  .tag-perplexity  { color: #fb923c; }
+  .tag-burst       { color: #FF6347; }
+  .tag-vocab       { color: #c084fc; }
+  .tag-readability { color: #2dd4bf; }
+  .tag-separator   { color: #475569; font-weight: 600; }
+  .tag-plain       { color: #94a3b8; }
+
+  /* ── Error ── */
+  #error-card { display: none; }
+  .error-box {
+    background: #450a0a;
+    border: 1px solid #991b1b;
+    border-radius: 8px;
+    padding: 16px;
+    color: #fca5a5;
+    font-size: 0.9rem;
+  }
+  .error-box strong { display: block; margin-bottom: 4px; color: #fecaca; }
+
+  /* ── New analysis link ── */
+  .restart-link {
+    display: inline-block;
+    margin-top: 16px;
+    color: #6366f1;
+    cursor: pointer;
+    font-size: 0.88rem;
+    text-decoration: underline;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Document Integrity Analyzer</h1>
+    <p>Detect AI-generated content, revision history, and metadata indicators in academic documents</p>
+  </div>
+
+  <!-- Privacy banner -->
+  <div class="privacy-banner">
+    <span class="icon">🔒</span>
+    <div>
+      <strong>Your privacy is protected.</strong>
+      Uploaded files are processed in an isolated session and permanently deleted the moment you leave or close this page.
+      No document content is stored or shared.
+    </div>
+  </div>
+
+  <!-- Step 1: Upload -->
+  <div class="card" id="upload-card">
+    <div class="step-label">Step 1 — Select your document(s)</div>
+
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" multiple accept=".docx,.pdf,.xml,.zip">
+      <div class="dz-icon">📄</div>
+      <div class="dz-main">Drag and drop files here, or click to browse</div>
+      <div class="dz-sub">
+        Accepts Word documents (.docx), PDFs (.pdf), XML files (.xml)<br>
+        To submit multiple files at once, upload a single .zip archive
+      </div>
+    </div>
+
+    <div id="file-list"></div>
+
+    <button id="analyse-btn" disabled>Analyse Document</button>
+  </div>
+
+  <!-- Step 2: Progress -->
+  <div class="card" id="progress-card">
+    <div class="step-label">Step 2 — Running analysis</div>
+    <div class="progress-label">
+      <span id="progress-msg">Starting…</span>
+      <span id="progress-pct">0%</span>
+    </div>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- Error card -->
+  <div class="card" id="error-card">
+    <div class="error-box">
+      <strong>Analysis failed</strong>
+      <span id="error-msg-text"></span>
+    </div>
+    <span class="restart-link" onclick="resetUI()">&#8592; Analyse another document</span>
+  </div>
+
+  <!-- Step 3: Results -->
+  <div class="card" id="results-card">
+    <div class="step-label">Step 3 — Review results</div>
+    <div class="action-bar">
+      <button class="action-btn primary" id="report-btn" style="display:none" onclick="openReport()">
+        📥 Download Full Report
+      </button>
+      <button class="action-btn" id="txt-btn" onclick="downloadTxt()">
+        💾 Save as Text
+      </button>
+      <button class="action-btn" id="copy-btn" onclick="copyFindings()">
+        📋 Copy to Clipboard
+      </button>
+    </div>
+    <div id="findings"></div>
+    <span class="restart-link" onclick="resetUI()">&#8592; Analyse another document</span>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Session management
+// Each browser tab gets its own UUID stored in sessionStorage.
+// sessionStorage is tab-scoped: new tab = new isolated session.
+// ─────────────────────────────────────────────────────────────────────────────
+let sessionId = sessionStorage.getItem('session_id');
+if (!sessionId) {
+  sessionId = crypto.randomUUID();
+  sessionStorage.setItem('session_id', sessionId);
+}
+
+function cleanupSession() {
+  navigator.sendBeacon('/session/cleanup',
+    new Blob([JSON.stringify({ session_id: sessionId })],
+             { type: 'application/json' }));
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') cleanupSession();
+});
+window.addEventListener('beforeunload', cleanupSession);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+let selectedFiles = [];
+let currentJobId  = null;
+let findingsCache = [];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// File input / drag-and-drop
+// ─────────────────────────────────────────────────────────────────────────────
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const analyseBtn = document.getElementById('analyse-btn');
+
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
+
+function handleFiles(fileList) {
+  selectedFiles = Array.from(fileList);
+  renderFileList();
+  analyseBtn.disabled = selectedFiles.length === 0;
+}
+
+function renderFileList() {
+  const container = document.getElementById('file-list');
+  if (selectedFiles.length === 0) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+  container.innerHTML = selectedFiles.map(f => `
+    <div class="file-item">
+      <span class="fi-icon">📄</span>
+      <span class="fi-name">${escHtml(f.name)}</span>
+      <span class="fi-size">${formatSize(f.size)}</span>
+    </div>`).join('');
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024)       return bytes + ' B';
+  if (bytes < 1048576)    return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Upload + analysis
+// ─────────────────────────────────────────────────────────────────────────────
+analyseBtn.addEventListener('click', startAnalysis);
+
+async function startAnalysis() {
+  if (selectedFiles.length === 0) return;
+
+  analyseBtn.disabled = true;
+  showSection('progress');
+
+  const formData = new FormData();
+  formData.append('session_id', sessionId);
+  for (const f of selectedFiles) formData.append('files', f);
+
+  let resp;
+  try {
+    resp = await fetch('/upload', { method: 'POST', body: formData });
+  } catch (err) {
+    showError('Could not reach the server. Please check your connection and try again.');
+    return;
+  }
+
+  const data = await resp.json();
+  if (!resp.ok) {
+    showError(data.error || 'Upload failed.');
+    return;
+  }
+
+  currentJobId = data.job_id;
+  pollStatus();
+}
+
+async function pollStatus() {
+  let resp;
+  try {
+    resp = await fetch(`/status/${sessionId}/${currentJobId}`);
+  } catch (err) {
+    setTimeout(pollStatus, 3000);
+    return;
+  }
+
+  if (!resp.ok) {
+    showError('Could not retrieve analysis status. Please try again.');
+    return;
+  }
+
+  const data = await resp.json();
+  updateProgress(data.progress_pct, data.progress_msg);
+
+  if (data.status === 'running' || data.status === 'pending') {
+    setTimeout(pollStatus, 1500);
+  } else if (data.status === 'done') {
+    findingsCache = data.findings || [];
+    renderFindings(findingsCache);
+    if (data.has_report) {
+      document.getElementById('report-btn').style.display = 'inline-flex';
+    }
+    showSection('results');
+  } else {
+    showError(data.error_msg || 'An unexpected error occurred during analysis.');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Progress bar
+// ─────────────────────────────────────────────────────────────────────────────
+function updateProgress(pct, msg) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent  = pct + '%';
+  document.getElementById('progress-msg').textContent  = msg || '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Findings rendering (color-coded by tag)
+// ─────────────────────────────────────────────────────────────────────────────
+const TAG_MAP = {
+  '[KEYWORD]':     'keyword',
+  '[SCRAPE]':      'scrape',
+  '[APP]':         'app',
+  '[RSID]':        'rsid',
+  '[TIMESTAMP]':   'timestamp',
+  '[REVISION]':    'revision',
+  '[AUTHOR]':      'author',
+  '[CONTENT]':     'content',
+  '[TRACK]':       'track',
+  '[COMMENT]':     'comment',
+  '[FORMAT]':      'format',
+  '[GDOCS]':       'gdocs',
+  '[PERPLEXITY]':  'perplexity',
+  '[BURST]':       'burst',
+  '[VOCAB]':       'vocab',
+  '[READABILITY]': 'readability',
+};
+
+function classForLine(line) {
+  const s = line.trimStart();
+  if (s.startsWith('===') || s.startsWith('---')) return 'separator';
+  for (const [prefix, cls] of Object.entries(TAG_MAP)) {
+    if (s.startsWith(prefix)) return cls;
+  }
+  return 'plain';
+}
+
+function renderFindings(findings) {
+  const container = document.getElementById('findings');
+  container.innerHTML = '';
+
+  if (!findings || findings.length === 0) {
+    const d = document.createElement('div');
+    d.className = 'tag-plain';
+    d.textContent = 'No findings returned.';
+    container.appendChild(d);
+    return;
+  }
+
+  for (const line of findings) {
+    const d = document.createElement('div');
+    d.className = 'tag-' + classForLine(line);
+    d.textContent = line === '' ? '\u00A0' : line;  // keep blank lines
+    container.appendChild(d);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Action buttons
+// ─────────────────────────────────────────────────────────────────────────────
+function openReport() {
+  window.open(`/report/${sessionId}/${currentJobId}`, '_blank');
+}
+
+function downloadTxt() {
+  window.location.href = `/download_txt/${sessionId}/${currentJobId}`;
+}
+
+async function copyFindings() {
+  const text = findingsCache.join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '📋 Copy to Clipboard';
+      btn.classList.remove('copied');
+    }, 2000);
+  } catch (_) {
+    alert('Could not access clipboard. Please select and copy the text manually.');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UI section switching
+// ─────────────────────────────────────────────────────────────────────────────
+function showSection(section) {
+  document.getElementById('progress-card').style.display = section === 'progress' ? '' : 'none';
+  document.getElementById('results-card').style.display  = section === 'results'  ? '' : 'none';
+  document.getElementById('error-card').style.display    = section === 'error'    ? '' : 'none';
+  // Keep the upload card visible unless we have results
+  if (section === 'results' || section === 'error') {
+    document.getElementById('upload-card').style.display = 'none';
+  }
+}
+
+function showError(msg) {
+  document.getElementById('error-msg-text').textContent = msg;
+  showSection('error');
+}
+
+function resetUI() {
+  selectedFiles = [];
+  currentJobId  = null;
+  findingsCache = [];
+  fileInput.value = '';
+  document.getElementById('file-list').style.display = 'none';
+  document.getElementById('findings').innerHTML = '';
+  document.getElementById('report-btn').style.display = 'none';
+  updateProgress(0, '');
+  analyseBtn.disabled = true;
+  document.getElementById('upload-card').style.display = '';
+  showSection('none');
+  // Generate a fresh session for the new analysis
+  sessionId = crypto.randomUUID();
+  sessionStorage.setItem('session_id', sessionId);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

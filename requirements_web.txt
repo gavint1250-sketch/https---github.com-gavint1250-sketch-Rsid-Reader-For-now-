@@ -1,0 +1,8 @@
+python-docx
+lxml
+pypdf
+transformers
+torch
+nltk
+packaging
+flask>=3.0
