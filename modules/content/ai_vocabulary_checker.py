@@ -10,6 +10,7 @@ for integration with the HTML report.
 
 import re
 from collections import Counter
+from .citation_utils import is_citation_paragraph
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +113,7 @@ def check_ai_vocabulary(document):
 
     for para in document.paragraphs:
         text = para.text.strip()
-        if not text:
+        if not text or is_citation_paragraph(para):
             per_para_hits.append([])
             continue
         words = _tokenize(text)

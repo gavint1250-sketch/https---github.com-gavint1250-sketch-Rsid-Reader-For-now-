@@ -8,13 +8,15 @@ def analyze_pdf(file_path):
 
     Checks performed:
       - PDF metadata (creator app, producer, author, timestamps, AI keywords)
-      - Content statistics (page count, word count, paragraph estimate)
+      - Full content analysis (readability, perplexity, AI vocab, stats, burstiness)
 
     Args:
         file_path (str): Path to the PDF file.
 
     Returns:
-        list: Finding strings.
+        tuple[list[str], list[dict]]:
+          findings          — flat finding strings for GUI display
+          report_paragraphs — per-paragraph structured data for the HTML report
     """
     findings = ["--- PDF Metadata Analysis ---"]
     try:
@@ -23,9 +25,11 @@ def analyze_pdf(file_path):
         findings.append(f"An unexpected error occurred during PDF metadata scan: {e}")
 
     findings.append("--- PDF Content Analysis ---")
+    report_paragraphs = []
     try:
-        findings += check_pdf_content(file_path)
+        content_findings, report_paragraphs = check_pdf_content(file_path)
+        findings += content_findings
     except Exception as e:
         findings.append(f"An unexpected error occurred during PDF content analysis: {e}")
 
-    return findings
+    return findings, report_paragraphs

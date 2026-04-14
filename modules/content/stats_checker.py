@@ -1,4 +1,5 @@
 import re as _re
+from .citation_utils import is_citation_paragraph
 
 
 def check_stats(document):
@@ -16,7 +17,7 @@ def check_stats(document):
     word_counts = []
     for para in document.paragraphs:
         text = para.text.strip()
-        if text:
+        if text and not is_citation_paragraph(para):
             word_counts.append(len(text.split()))
 
     total_paragraphs = len(word_counts)
@@ -54,7 +55,7 @@ def check_vocabulary_diversity(document):
     all_words = []
     for para in document.paragraphs:
         text = para.text.strip()
-        if text:
+        if text and not is_citation_paragraph(para):
             all_words.extend(_re.findall(r"[a-z]+", text.lower()))
 
     total_words = len(all_words)

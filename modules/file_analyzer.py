@@ -31,7 +31,8 @@ def analyze_file(file_path):
 
     elif file_path.lower().endswith('.pdf'):
         from .pdf import analyze_pdf
-        findings.extend(analyze_pdf(file_path))
+        pdf_findings, report_paragraphs = analyze_pdf(file_path)
+        findings.extend(pdf_findings)
 
     elif file_path.lower().endswith('.xml'):
         findings.append("--- XML Analysis ---")

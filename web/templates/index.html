@@ -351,10 +351,7 @@ function cleanupSession() {
     new Blob([JSON.stringify({ session_id: sessionId })],
              { type: 'application/json' }));
 }
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') cleanupSession();
-});
-window.addEventListener('beforeunload', cleanupSession);
+window.addEventListener('pagehide', cleanupSession);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State
@@ -562,9 +559,9 @@ async function copyFindings() {
 // UI section switching
 // ─────────────────────────────────────────────────────────────────────────────
 function showSection(section) {
-  document.getElementById('progress-card').style.display = section === 'progress' ? '' : 'none';
-  document.getElementById('results-card').style.display  = section === 'results'  ? '' : 'none';
-  document.getElementById('error-card').style.display    = section === 'error'    ? '' : 'none';
+  document.getElementById('progress-card').style.display = section === 'progress' ? 'block' : 'none';
+  document.getElementById('results-card').style.display  = section === 'results'  ? 'block' : 'none';
+  document.getElementById('error-card').style.display    = section === 'error'    ? 'block' : 'none';
   // Keep the upload card visible unless we have results
   if (section === 'results' || section === 'error') {
     document.getElementById('upload-card').style.display = 'none';

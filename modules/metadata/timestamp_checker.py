@@ -40,9 +40,17 @@ def check_timestamps(props):
                 "— metadata may be inconsistent."
             )
         else:
-            minutes, seconds = divmod(delta_seconds, 60)
+            minutes_total, seconds = divmod(delta_seconds, 60)
+            hours, minutes         = divmod(minutes_total, 60)
+            days, hours            = divmod(hours, 24)
+            parts = []
+            if days:
+                parts.append(f"{days} day{'s' if days != 1 else ''}")
+            if hours:
+                parts.append(f"{hours} hr")
+            parts.append(f"{minutes} min {seconds} sec")
             findings.append(
-                f"[TIMESTAMP] Time between creation and last save: {minutes} min {seconds} sec"
+                f"[TIMESTAMP] Time between creation and last save: {' '.join(parts)}"
             )
 
     return findings

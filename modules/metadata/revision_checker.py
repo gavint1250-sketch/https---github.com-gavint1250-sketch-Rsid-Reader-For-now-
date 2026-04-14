@@ -11,5 +11,5 @@ def check_revision(props):
     findings = []
     rev = props.revision
     if rev is not None:
-        findings.append(f"[REVISION] Revision count: {rev}")
+        findings.append(f"[REVISION] Revision count: {rev}  (Word's internal save counter — see RSID section for editing sessions)")
     return findings

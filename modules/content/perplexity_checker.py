@@ -2,6 +2,7 @@
 import os
 import math
 import statistics
+from .citation_utils import is_citation_paragraph
 
 # GPT-2 model and tokenizer are cached at module level so batch processing
 # only pays the load cost once.
@@ -112,7 +113,7 @@ def _score_paragraphs_internal(document):
     results = []
     for para in document.paragraphs:
         text = para.text.strip()
-        if not text:
+        if not text or is_citation_paragraph(para):
             continue
 
         words = text.split()

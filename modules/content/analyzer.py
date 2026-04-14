@@ -6,6 +6,7 @@ from .formatting_checker import check_formatting
 from .ai_vocabulary_checker import check_ai_vocabulary
 from .readability_checker import check_readability
 from .perplexity_checker import check_perplexity_and_burstiness, get_cached_paragraph_scores
+from .citation_utils import is_citation_paragraph
 
 
 def analyze_content(file_path):
@@ -63,15 +64,15 @@ def analyze_content(file_path):
         perp_cache = get_cached_paragraph_scores()  # list[dict], indexed by para position
 
         # Build a lookup from paragraph index → cached perplexity entry.
-        # perp_cache only contains non-empty paragraphs, so we match by tracking
-        # a separate counter for non-empty paragraphs.
+        # perp_cache only contains non-empty, non-citation paragraphs, so we
+        # advance the cache pointer only for those paragraphs.
         perp_by_para_idx = {}
-        non_empty_count = 0
+        cache_idx = 0
         for i, para in enumerate(paragraphs):
-            if para.text.strip():
-                if non_empty_count < len(perp_cache):
-                    perp_by_para_idx[i] = perp_cache[non_empty_count]
-                non_empty_count += 1
+            if para.text.strip() and not is_citation_paragraph(para):
+                if cache_idx < len(perp_cache):
+                    perp_by_para_idx[i] = perp_cache[cache_idx]
+                    cache_idx += 1
 
         # --- Assemble per-paragraph report data ---
         for i, para in enumerate(paragraphs):

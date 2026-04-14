@@ -14,24 +14,74 @@ Human writing shows considerably wider variation in both metrics.
 
 import re
 
-_VOWEL_RE = re.compile(r"[aeiouy]+", re.IGNORECASE)
-_SILENT_E_RE = re.compile(r"[^aeiouy]e$", re.IGNORECASE)
+# Known English diphthongs/digraphs that form a single syllable.
+# Vowel pairs NOT in this set are treated as hiatus (two separate syllables).
+_DIPHTHONGS = frozenset([
+    'ai', 'au', 'ay', 'ea', 'ee', 'ei', 'eu', 'ew', 'ey',
+    'ie', 'oa', 'oe', 'oi', 'oo', 'ou', 'ow', 'oy', 'ue', 'ui', 'uy'
+])
+_SILENT_E_RE = re.compile(r'[^aeiouy]e$', re.IGNORECASE)
+_CONS_LE_RE  = re.compile(r'[^aeiouy]le$', re.IGNORECASE)
+
+# Patterns to strip before readability scoring
+_URL_RE     = re.compile(r'https?://\S+|www\.\S+', re.IGNORECASE)
+_XML_TAG_RE = re.compile(r'<[^>]+>')
+_CURLY_RE   = re.compile(r'\{[^}]*\}')
+_DASHES_RE  = re.compile(r'-{2,}[^-]*-{2,}')  # --- PAGE 1 --- style markers
+
+from .citation_utils import is_citation_paragraph as _is_citation_paragraph
+
+
+def _clean_text_for_readability(text):
+    """Strip metadata, tags, URLs, and structural markers before scoring."""
+    text = _URL_RE.sub(' ', text)
+    text = _XML_TAG_RE.sub(' ', text)
+    text = _CURLY_RE.sub(' ', text)
+    text = _DASHES_RE.sub(' ', text)
+    return text
 
 
 def _count_syllables(word):
     """
-    Heuristic syllable counter (~85% accuracy for standard English).
-      1. Count vowel groups.
-      2. Subtract 1 for a silent trailing 'e' (if not the only syllable).
-      3. Return at least 1.
+    Heuristic syllable counter with diphthong/hiatus awareness.
+      1. Walk character by character; each vowel starts a new syllable.
+      2. Two-vowel pairs in _DIPHTHONGS count as ONE syllable (advance by 2).
+      3. Other adjacent vowel pairs (hiatus: ia, io, eo, ua…) count as TWO.
+      4. Subtract 1 for a silent trailing 'e' (if not the only syllable).
+      5. Add 1 for a consonant+'le' ending (e.g. "ta-ble", "lit-tle").
+      6. Return at least 1.
     """
     word = word.lower().strip(".,;:!?\"'()-")
     if not word:
         return 0
-    groups = len(_VOWEL_RE.findall(word))
-    if groups > 1 and _SILENT_E_RE.search(word):
-        groups -= 1
-    return max(1, groups)
+
+    count = 0
+    i = 0
+    while i < len(word):
+        if word[i] in 'aeiouy':
+            if i + 1 < len(word) and word[i + 1] in 'aeiouy':
+                pair = word[i:i + 2]
+                if pair in _DIPHTHONGS:
+                    count += 1   # known diphthong → one syllable
+                    i += 2
+                else:
+                    count += 1   # hiatus first vowel; second handled next loop
+                    i += 1
+            else:
+                count += 1
+                i += 1
+        else:
+            i += 1
+
+    # Silent trailing e (e.g. "make", "hope")
+    if count > 1 and _SILENT_E_RE.search(word):
+        count -= 1
+
+    # Consonant + le ending is its own syllable (e.g. "ta-ble", "sim-ple")
+    if _CONS_LE_RE.search(word):
+        count += 1
+
+    return max(1, count)
 
 
 def _split_sentences(text):
@@ -46,6 +96,7 @@ def _score_text(text):
     Returns (ease, grade, word_count, sentence_count, syllable_count).
     Returns all-zeros tuple when there is insufficient text.
     """
+    text = _clean_text_for_readability(text)
     words = re.findall(r"[a-zA-Z'-]+", text)
     sentences = _split_sentences(text)
     wc = len(words)
@@ -87,7 +138,7 @@ def check_readability(document):
 
     for para in document.paragraphs:
         text = para.text.strip()
-        if not text:
+        if not text or _is_citation_paragraph(para):
             per_para_scores.append((0.0, 0.0))
             continue
         ease, grade, wc, sc, syls = _score_text(text)

@@ -32,6 +32,7 @@ def run_analysis(session_id: str, job_id: str,
     # generate_html_report(report_data, findings) — paragraphs first (line 108)
 
     try:
+        print(f"[WORKER] Starting analysis: session={session_id[:8]} job={job_id[:8]} files={original_names}")
         update_job(session_id, job_id,
                    status="running", progress_pct=5,
                    progress_msg="Starting analysis…")
@@ -49,7 +50,9 @@ def run_analysis(session_id: str, job_id: str,
                 separator = "=" * 60
                 all_findings += [separator, f"=== FILE: {fname} ===", separator]
 
+            print(f"[WORKER] Analysing file: {fname}")
             findings, report_data = analyze_file(fpath)
+            print(f"[WORKER] Done analysing {fname}: {len(findings)} findings, {len(report_data)} report entries")
             all_findings.extend(findings)
             all_report_data.extend(report_data)
 
@@ -63,6 +66,7 @@ def run_analysis(session_id: str, job_id: str,
         if all_report_data:
             report_html = generate_html_report(all_report_data, all_findings)
 
+        print(f"[WORKER] Analysis complete. {len(all_findings)} total findings. Report: {'yes' if report_html else 'no'}")
         update_job(session_id, job_id,
                    status="done",
                    progress_pct=100,
@@ -71,6 +75,9 @@ def run_analysis(session_id: str, job_id: str,
                    report_html=report_html)
 
     except Exception as exc:
+        import traceback
+        print(f"[WORKER] ERROR: {exc}")
+        traceback.print_exc()
         update_job(session_id, job_id,
                    status="error",
                    error_msg=str(exc),
